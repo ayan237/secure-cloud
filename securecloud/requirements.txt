@@ -1,0 +1,6 @@
+fastapi[standard]
+uvicorn[standard]
+boto3
+python-dotenv
+cryptography
+pytest

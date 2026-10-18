@@ -1,0 +1,542 @@
+# Product Requirements Document (PRD)
+# SecureCloud: Encrypted Cloud File Storage and Portfolio Hosting
+
+## 1. Project Overview
+
+**Project Name:** SecureCloud
+
+**Project Type:** Cloud Computing Mini Project
+
+**Primary Objective:** Implement file segmentation, application-level encryption, cloud storage, secure downloading and file reconstruction using Amazon S3. Host a portfolio/documentation website on Amazon S3 and distribute it using Amazon CloudFront with HTTPS.
+
+**Target Users:** Students, educators and users who need a simple demonstration of encrypted cloud file storage.
+
+**Development Priority:** A complete, functional, beginner-friendly implementation with real AWS integration and minimal deployment cost.
+
+The application must demonstrate the following cloud computing concepts:
+
+- File segmentation into blocks.
+- AES-256-GCM application-level encryption.
+- Uploading encrypted blocks to Amazon S3.
+- Downloading, decrypting and reconstructing files.
+- Cloud storage access control and encryption at rest.
+- Static website hosting using S3.
+- Content delivery and HTTPS using CloudFront.
+
+## 2. Core Requirements
+
+Build two related components:
+
+### Component A: Secure File Storage Application
+
+A browser-based application that allows a user to upload files, split them into blocks, encrypt each block, store the encrypted blocks in Amazon S3, and download the original file by retrieving, decrypting and reconstructing its blocks.
+
+### Component B: Portfolio and Documentation Website
+
+A static, responsive website describing the project, its architecture, algorithms, security features, technologies and test results. It must be deployable to Amazon S3 and served through Amazon CloudFront over HTTPS.
+
+Both components must work independently. The file storage application must be usable locally while connecting to a real S3 bucket. The portfolio must be deployable even if optional backend hosting is not configured.
+
+## 3. Technology Stack
+
+Use the following stack unless a compatibility issue makes a change necessary.
+
+### Frontend
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Fetch API for backend requests
+- Responsive layout for desktop and mobile
+
+### Backend
+- Python 3.12, or another compatible supported Python version
+- FastAPI
+- Uvicorn
+- Boto3 for Amazon S3 integration
+- Cryptography library for AES-256-GCM
+- Python Multipart for file uploads
+- Python Dotenv for optional local configuration
+
+### Cloud Infrastructure
+- Amazon S3 for encrypted block storage and static website assets
+- Amazon CloudFront for HTTPS and CDN distribution
+- AWS IAM for least-privilege access control
+- AWS CLI for local configuration and deployment
+- AWS Budgets for billing alerts where available
+
+### Testing
+- Pytest
+- FastAPI TestClient
+- Python hashlib for SHA-256 verification
+- Mock S3 operations for automated tests
+
+Do not require React, Next.js, Node.js, Docker, a database, paid APIs or paid third-party services for the initial version.
+
+## 4. Functional Requirements
+
+### FR-01: File Upload
+
+The application must:
+1. Allow the user to select a file through a file picker.
+2. Display the filename and file size before upload.
+3. Validate that the file is not empty and is within a configurable upload-size limit.
+4. Accept common document and media formats without unnecessarily restricting extensions.
+5. Generate a unique file ID for each upload.
+6. Display upload status, success messages and meaningful errors.
+
+For the initial version, use a configurable maximum upload size of 20 MB. Keep this limit adjustable through backend configuration.
+
+### FR-02: File Segmentation
+
+Split each uploaded file into binary blocks of 1 MiB (1,048,576 bytes), except for the final block, which may be smaller.
+
+Requirements:
+- Process files in binary mode.
+- Preserve the exact original byte sequence.
+- Assign a stable, zero-based block index.
+- Generate predictable object keys within a unique file-specific prefix.
+- Record block count, original file size and block order.
+- Handle files smaller than one block and files exactly divisible by the block size.
+- Avoid loading the entire file into memory unnecessarily.
+
+Use a temporary directory for intermediate processing and clean it up after the operation completes or fails.
+
+### FR-03: Encryption
+
+Encrypt every block independently using AES-256-GCM before uploading it to S3.
+
+Requirements:
+- Generate a cryptographically secure 256-bit encryption key for each file.
+- Use a unique, cryptographically secure 96-bit nonce for every encrypted block.
+- Never reuse a nonce with the same key.
+- Store the nonce with the encrypted payload or record it in the manifest.
+- Preserve the authentication tag produced by the cryptographic library.
+- Use authenticated metadata where appropriate to bind a block to its file ID and block index.
+- Reject modified or corrupted ciphertext during decryption.
+- Never upload plaintext blocks to S3.
+
+The encryption key must remain separate from the encrypted objects. Never store plaintext encryption keys in the S3 bucket, frontend JavaScript, Git repository, application logs or public documentation.
+
+For the local educational implementation, provide a secure local key-management mechanism that allows the same file to be decrypted after the application restarts. Clearly document that this mode requires access to the local key store and is not a multi-user production key-management system.
+
+Use appropriate file permissions and exclude the key store from Git.
+
+### FR-04: Cloud Storage
+
+Implement S3 integration through a dedicated storage module.
+
+Required operations:
+- Upload encrypted block objects.
+- Upload a JSON manifest.
+- List stored files.
+- Download encrypted blocks.
+- Retrieve a manifest.
+- Delete a file and its associated objects.
+
+Use an object layout similar to:
+
+files/{file_id}/manifest.json
+files/{file_id}/blocks/000000.enc
+files/{file_id}/blocks/000001.enc
+files/{file_id}/blocks/000002.enc
+
+The manifest must include:
+- File ID.
+- Original filename.
+- Original file size.
+- Block size.
+- Block count.
+- Ordered block object keys.
+- Nonce metadata, if not embedded in each payload.
+- Creation timestamp.
+- Original file SHA-256 hash.
+- Encryption algorithm and format version.
+
+Do not include encryption keys in the manifest.
+
+Store metadata only after validating it. Validate object keys and file IDs before reading or deleting cloud objects.
+
+If an upload fails partway through, report the error clearly and attempt to clean up the objects created by that operation. Do not silently report success when only some blocks have been uploaded.
+
+### FR-05: File Listing
+
+Display uploaded files in a table or card layout with:
+- Original filename.
+- File size.
+- Number of blocks.
+- Upload date.
+- File ID.
+- Download action.
+- Delete action.
+
+For the initial single-user demonstration, document the limitations of the listing model. Do not claim that the application provides user authentication or private multi-user accounts.
+
+### FR-06: Secure Download and Reconstruction
+
+When the user downloads a file:
+
+1. Retrieve and validate the manifest.
+2. Retrieve every encrypted block in the recorded order.
+3. Verify that the required blocks exist.
+4. Decrypt each block using the correct key and nonce.
+5. Authenticate every block using AES-GCM.
+6. Reconstruct the original file in binary mode.
+7. Calculate the SHA-256 hash of the reconstructed file.
+8. Compare the hash with the original hash in the manifest.
+9. Return the file only if decryption and integrity verification succeed.
+
+If any block is missing, corrupted or fails authentication, abort reconstruction and return a clear error.
+
+Use temporary files and clean them up after completion. Never return partially reconstructed files as successful downloads.
+
+### FR-07: File Deletion
+
+Provide a delete action that:
+- Confirms the user's intent.
+- Deletes only the specified file's manifest and block objects.
+- Validates that every object belongs to the requested file prefix.
+- Returns a clear success or failure result.
+
+Document that deleting cloud objects does not automatically remove independent backups, downloaded copies or previously issued links.
+
+### FR-08: Portfolio Website
+
+Create a separate static portfolio website containing:
+
+1. Project title and summary.
+2. Problem statement.
+3. Project objectives.
+4. System architecture diagram.
+5. File segmentation explanation.
+6. AES-256-GCM encryption explanation.
+7. S3 upload/download workflow.
+8. CloudFront and HTTPS explanation.
+9. Technology stack.
+10. Screenshots or clearly labelled screenshot placeholders.
+11. Setup and deployment instructions.
+12. Limitations and future enhancements.
+
+The portfolio must be responsive, visually polished and readable on desktop and mobile.
+
+Use a professional cloud-computing theme with a clean navigation bar, hero section, architecture diagram, feature cards, workflow section and footer.
+
+Do not invent benchmark results, security certifications, user statistics or deployment claims.
+
+### FR-09: CloudFront and HTTPS
+
+Provide a deployment script or detailed repeatable instructions to:
+- Upload static website files to S3.
+- Create or configure a CloudFront distribution.
+- Use the S3 REST origin with Origin Access Control.
+- Keep the S3 origin private.
+- Configure the default root object as index.html.
+- Redirect HTTP viewer requests to HTTPS.
+- Provide the CloudFront distribution URL after deployment.
+- Support cache invalidation when website content changes.
+
+Do not use a public S3 bucket for website delivery. Do not use the S3 static website endpoint as the CloudFront origin when Origin Access Control is required.
+
+A custom domain and paid certificate configuration are not required.
+
+### FR-10: Optional AWS Backend Deployment
+
+The required demonstration may run FastAPI locally while connecting to real S3.
+
+Keep the backend deployable separately in the future. Do not make the core application dependent on EC2, a continuously running server, a database, a NAT gateway or other costly infrastructure.
+
+Do not automatically create expensive AWS resources.
+
+If optional backend deployment is implemented, document the expected costs, security requirements and configuration steps. Never deploy resources without an explicit user action.
+
+## 5. API Specification
+
+Implement the following FastAPI endpoints:
+
+### GET /health
+Returns API status and basic application version information.
+
+### POST /upload
+Accepts a multipart file upload.
+
+Response should contain:
+- File ID.
+- Filename.
+- Original size.
+- Block count.
+- SHA-256 hash.
+- Upload status.
+
+### GET /files
+Returns metadata for the stored files.
+
+### GET /files/{file_id}
+Returns metadata for a specific file.
+
+### GET /files/{file_id}/download
+Downloads, decrypts and reconstructs the original file. Return the file using an appropriate Content-Disposition header.
+
+### DELETE /files/{file_id}
+Deletes the selected file and its related objects.
+
+Use appropriate HTTP status codes and structured JSON error responses. Do not expose stack traces, secret values, internal filesystem paths or AWS credentials.
+
+## 6. Frontend Requirements
+
+Create a dashboard with these sections:
+
+### Dashboard Header
+- SecureCloud branding.
+- Brief project description.
+- Connection or backend status indicator.
+
+### Upload Section
+- File picker.
+- Selected filename and size.
+- Upload button.
+- Progress or status indicator.
+- Success and error messages.
+
+### Stored Files Section
+- File list.
+- Block count and size.
+- Download button.
+- Delete button with confirmation.
+
+### Security Information
+Show the encryption algorithm, block size, storage provider and integrity verification status.
+
+Do not display encryption keys or secret credentials.
+
+### UI Quality
+- Responsive layout.
+- Accessible buttons and labels.
+- Loading states.
+- Empty states.
+- Clear error messages.
+- No inert buttons or fake success notifications.
+- No unnecessary animations or dependencies.
+
+The frontend must work without a third-party API or external AI service.
+
+## 7. AWS Configuration
+
+Provide a complete AWS setup guide.
+
+### S3 Bucket
+- Use a unique bucket name.
+- Choose a suitable AWS region.
+- Keep Block Public Access enabled.
+- Use bucket-owner-enforced object ownership.
+- Keep default server-side encryption enabled.
+- Enable only the permissions necessary for the application.
+
+### IAM
+Use a dedicated IAM identity for local development, with permissions restricted to the project bucket and required actions.
+
+The policy should distinguish bucket-level permissions such as listing objects from object-level permissions such as reading, uploading and deleting objects.
+
+Do not use root account credentials in the application.
+
+Do not hardcode AWS access keys in Python source files.
+
+### Local Credentials
+Support the AWS CLI named profile `securecloud` and allow standard AWS credential-chain configuration.
+
+Use environment variables only for non-secret configuration where possible, such as the bucket name and AWS region.
+
+### CloudFront
+Use Origin Access Control and the S3 REST endpoint. Keep the origin private and allow CloudFront access through a distribution-specific bucket policy.
+
+### Cost Management
+Document how to:
+- Check Free Tier eligibility and available credits.
+- Set up AWS Budgets and billing alerts.
+- Check current service pricing.
+- Avoid unnecessary paid services.
+- Delete test objects and unused resources.
+- Remove the CloudFront distribution and buckets after the demonstration if they are no longer needed.
+
+Never claim that the project is guaranteed to be completely free. Current eligibility, credits, usage and service configuration determine the actual cost.
+
+## 8. Security Requirements
+
+- Never commit AWS credentials, encryption keys, .env files or local key stores.
+- Provide a complete .gitignore.
+- Validate file size and metadata.
+- Generate file IDs on the server.
+- Prevent path traversal and unsafe object-key construction.
+- Use unique nonces with AES-GCM.
+- Verify ciphertext authentication and reconstructed file hashes.
+- Keep all storage buckets private.
+- Restrict IAM permissions.
+- Avoid logging file contents, credentials or encryption keys.
+- Use HTTPS for cloud API requests.
+- Add reasonable upload and request limits.
+- Restrict CORS to configured frontend origins.
+- Use temporary directories and reliably clean up files.
+- Handle partial uploads and failed downloads safely.
+- Document the absence of user authentication in the initial version.
+- Do not expose a public API with unrestricted upload, listing or deletion permissions.
+
+Do not implement custom cryptographic algorithms. Use established libraries and authenticated encryption.
+
+## 9. Testing Requirements
+
+Create automated tests for the file-processing and API layers.
+
+Required test cases:
+
+1. Empty file is rejected with a clear message.
+2. File smaller than 1 MiB produces one block.
+3. File larger than 1 MiB produces multiple blocks.
+4. File exactly 1 MiB is handled correctly.
+5. Encryption and decryption restore the original bytes.
+6. Different encryptions use distinct nonces.
+7. Modified ciphertext fails AES-GCM authentication.
+8. Missing blocks cause reconstruction to fail.
+9. Reconstructed SHA-256 matches the original file hash.
+10. Upload validation rejects oversized files.
+11. Invalid file IDs are rejected.
+12. Storage failures do not produce false success responses.
+13. S3 operations can be tested with mocked clients.
+14. Download responses contain the correct filename.
+15. Deletion is limited to the selected file's objects.
+16. The static portfolio loads with valid assets and navigation.
+
+Automated tests must not require AWS credentials. Use mocked S3 clients for unit tests, then provide a separate optional integration test for a real AWS account.
+
+Never silently skip failed tests.
+
+## 10. Project Structure
+
+Use the following structure:
+
+securecloud/
+├── backend/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   ├── encryption.py
+│   ├── file_utils.py
+│   ├── storage.py
+│   ├── manifest.py
+│   ├── requirements.txt
+│   └── tests/
+│       ├── test_encryption.py
+│       ├── test_file_utils.py
+│       ├── test_api.py
+│       └── test_storage.py
+├── frontend/
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+├── portfolio/
+│   ├── index.html
+│   ├── style.css
+│   └── assets/
+├── scripts/
+│   ├── deploy_portfolio.ps1
+│   └── cleanup_aws.ps1
+├── .env.example
+├── .gitignore
+├── README.md
+└── PRD.md
+
+Adjust the structure only when required for correct imports or deployment. Do not add unnecessary frameworks or infrastructure.
+
+## 11. Documentation Requirements
+
+Generate a complete README.md with:
+
+- Project overview.
+- Features.
+- Architecture.
+- Prerequisites.
+- Installation instructions for Windows PowerShell.
+- Virtual environment setup.
+- Dependency installation.
+- AWS account and S3 configuration.
+- IAM policy setup.
+- Local application startup.
+- Automated test commands.
+- Portfolio deployment instructions.
+- CloudFront configuration.
+- Security limitations.
+- Cost-management guidance.
+- Cleanup instructions.
+- Troubleshooting.
+
+Provide an .env.example with placeholders only, never real credentials.
+
+Include the architecture diagram as Mermaid source in the README and a visual version in the portfolio.
+
+## 12. Acceptance Criteria
+
+The project is considered complete only when:
+
+1. The application starts locally without errors.
+2. The dashboard can upload a file through the API.
+3. Files are split into 1 MiB blocks.
+4. Every block is encrypted before S3 upload.
+5. Encrypted objects are visible in the private S3 bucket.
+6. The manifest correctly records block order and metadata.
+7. The application downloads and reconstructs the original file.
+8. The reconstructed SHA-256 matches the original.
+9. Corrupted or missing blocks produce errors rather than invalid files.
+10. The file listing and deletion functionality work.
+11. Automated tests run and their results are documented.
+12. The portfolio website can be deployed to S3.
+13. CloudFront serves the portfolio over HTTPS.
+14. Direct anonymous access to private S3 objects is denied.
+15. The README explains how to reproduce the setup.
+16. No AWS secrets or encryption keys are present in the repository.
+17. The project can be demonstrated without a paid third-party service.
+
+## 13. Implementation Instructions for the Agentic IDE
+
+Build the complete project, not merely a prototype or UI mockup.
+
+Follow this implementation order:
+
+1. Inspect the existing workspace and preserve useful existing files.
+2. Create the backend modules and dependencies.
+3. Implement file segmentation, encryption and reconstruction.
+4. Implement the S3 storage abstraction.
+5. Implement the FastAPI endpoints.
+6. Implement the frontend and connect it to the backend.
+7. Implement automated tests and fix failures.
+8. Build the static portfolio and documentation.
+9. Create repeatable deployment and cleanup scripts.
+10. Write the README and AWS setup guide.
+11. Validate imports, endpoint behavior, tests, configuration and frontend assets.
+12. Provide a final summary of completed features, commands to run the application, test results and exact AWS actions still requiring manual user approval.
+
+Use clear, beginner-friendly code with type hints, comments where useful and sensible error handling.
+
+Do not stop after generating the file structure. Implement the actual functionality.
+
+Do not fabricate AWS deployment results. If AWS credentials are unavailable, finish and test the local implementation using mocks, and explain the exact steps the user must complete to deploy it.
+
+Do not create AWS resources, incur charges, delete existing resources or change account permissions automatically. Ask for explicit user approval before any action that could create costs or affect a real AWS account.
+
+## 14. Scope Boundaries
+
+The initial version does not require:
+- User registration or login.
+- Multi-user access control.
+- Public file sharing.
+- Database integration.
+- Mobile applications.
+- Paid APIs.
+- Production-scale distributed processing.
+- Automatic AWS resource provisioning.
+- A custom domain.
+- A continuously running cloud backend.
+
+These may be considered future enhancements only after the required project works.
+
+## Final Deliverable
+
+Produce a fully implemented, locally runnable SecureCloud application with actual S3 integration, file segmentation, AES-256-GCM encryption, secure downloading and reconstruction, automated tests, a separate portfolio website, CloudFront HTTPS deployment instructions, and complete beginner-friendly documentation.
+
+Prioritize correctness, security, reproducibility and low cost over unnecessary features or visual complexity.
