@@ -1,0 +1,15 @@
+# Netlify Configuration for SecureCloud (when Base Directory is set to 'securecloud')
+[build]
+  publish = "frontend"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from = "/portfolio"
+  to = "/portfolio/index.html"
+  status = 200

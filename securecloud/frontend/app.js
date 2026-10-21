@@ -9,7 +9,62 @@
    - Real-time search filter and 1-click SHA-256 copy
    ========================================================================== */
 
-const API_BASE_URL = "http://127.0.0.1:8000"; // change if server runs elsewhere
+// ==========================================================================
+// Dynamic API Endpoint Configuration (Local vs Netlify Deployed)
+// ==========================================================================
+function resolveApiBaseUrl() {
+    // 1. URL Query Param: ?api=https://my-backend.com
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get("api");
+    if (paramUrl) {
+        const cleaned = paramUrl.trim().replace(/\/+$/, "");
+        localStorage.setItem("SECURECLOUD_API_URL", cleaned);
+        return cleaned;
+    }
+
+    // 2. Saved in localStorage
+    const saved = localStorage.getItem("SECURECLOUD_API_URL");
+    if (saved !== null && saved.trim() !== "") {
+        return saved.trim().replace(/\/+$/, "");
+    }
+
+    // 3. Runtime window config
+    if (window.__SECURECLOUD_CONFIG__ && window.__SECURECLOUD_CONFIG__.API_BASE_URL) {
+        return window.__SECURECLOUD_CONFIG__.API_BASE_URL.trim().replace(/\/+$/, "");
+    }
+
+    // 4. Default for local development
+    const isLocal = window.location.hostname === "localhost" || 
+                    window.location.hostname === "127.0.0.1" || 
+                    window.location.protocol === "file:";
+    if (isLocal) {
+        return "http://127.0.0.1:8000";
+    }
+
+    // 5. Production (e.g. Netlify) with no explicit backend URL configured yet
+    return "";
+}
+
+let API_BASE_URL = resolveApiBaseUrl();
+
+function setApiBaseUrl(newUrl) {
+    API_BASE_URL = (newUrl || "").trim().replace(/\/+$/, "");
+    if (API_BASE_URL) {
+        localStorage.setItem("SECURECLOUD_API_URL", API_BASE_URL);
+    } else {
+        localStorage.removeItem("SECURECLOUD_API_URL");
+    }
+    updateDocsLink();
+    checkBackendHealth();
+    loadFiles();
+}
+
+function updateDocsLink() {
+    const docsLink = document.getElementById("footer-docs-link");
+    if (docsLink) {
+        docsLink.href = API_BASE_URL ? `${API_BASE_URL}/docs` : "#";
+    }
+}
 
 // Required DOM references
 const fileInput = document.getElementById("file-input");
@@ -34,6 +89,17 @@ const refreshFilesBtn = document.getElementById("refresh-files-btn");
 const toastContainer = document.getElementById("toast-container");
 const backendStatusBadge = document.getElementById("backend-status-badge");
 const statusLabel = document.getElementById("status-label");
+
+// Backend Connection Settings Modal
+const apiSettingsBtn = document.getElementById("api-settings-btn");
+const apiModalBackdrop = document.getElementById("api-modal-backdrop");
+const modalCloseBtn = document.getElementById("modal-close-btn");
+const backendUrlInput = document.getElementById("backend-url-input");
+const testConnectionBtn = document.getElementById("test-connection-btn");
+const modalConnectionStatus = document.getElementById("modal-connection-status");
+const presetLocalBtn = document.getElementById("preset-local-btn");
+const presetProxyBtn = document.getElementById("preset-proxy-btn");
+const presetResetBtn = document.getElementById("preset-reset-btn");
 
 // Local cache for search filtering
 let cachedFilesList = [];
@@ -180,6 +246,18 @@ uploadBtn.addEventListener("click", async () => {
     const file = fileInput.files[0];
     if (!file) return;
 
+    if (!API_BASE_URL) {
+        showToast("Please configure your Backend API URL first.", "error");
+        openApiModal();
+        return;
+    }
+
+    if (window.location.protocol === "https:" && API_BASE_URL.startsWith("http://")) {
+        showToast("Cannot upload: HTTP backend is blocked on HTTPS site. Please use HTTPS.", "error");
+        openApiModal();
+        return;
+    }
+
     uploadBtn.disabled = true;
     progressWrapper.classList.remove("hidden");
     progressBar.value = 15;
@@ -252,6 +330,20 @@ async function loadFiles() {
     filesTableBody.innerHTML = "";
     filesMsg.textContent = "";
 
+    if (!API_BASE_URL) {
+        filesMsg.innerHTML = `
+            <div class="empty-vault-state">
+                <div class="empty-vault-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>
+                </div>
+                <div class="empty-vault-title">Backend API Not Connected</div>
+                <div class="empty-vault-desc">Deployed on Netlify? Connect to your hosted FastAPI backend (e.g. Render, Railway, AWS).</div>
+                <button type="button" class="preset-pill" onclick="openApiModal()" style="margin-top: 1rem; font-size: 0.85rem; padding: 0.45rem 1rem;">Configure Backend URL</button>
+            </div>
+        `;
+        return;
+    }
+
     try {
         const resp = await fetch(`${API_BASE_URL}/files`);
         if (!resp.ok) throw new Error("Failed to fetch file list");
@@ -268,6 +360,7 @@ async function loadFiles() {
                 </div>
                 <div class="empty-vault-title">Unable to reach cloud storage</div>
                 <div class="empty-vault-desc">${e.message}</div>
+                <button type="button" class="preset-pill" onclick="openApiModal()" style="margin-top: 1rem; font-size: 0.85rem; padding: 0.45rem 1rem;">Check Backend Connection</button>
             </div>
         `;
     }
@@ -426,19 +519,149 @@ if (refreshFilesBtn) {
 // ==========================================================================
 async function checkBackendHealth() {
     if (!backendStatusBadge || !statusLabel) return;
+
+    if (!API_BASE_URL) {
+        backendStatusBadge.className = "status-pill status-checking";
+        statusLabel.textContent = "Configure Backend";
+        backendStatusBadge.title = "Click to configure your FastAPI backend endpoint";
+        return;
+    }
+
+    if (window.location.protocol === "https:" && API_BASE_URL.startsWith("http://")) {
+        backendStatusBadge.className = "status-pill status-offline";
+        statusLabel.textContent = "Mixed Content (HTTPS Required)";
+        backendStatusBadge.title = "Browser blocked HTTP backend on HTTPS site. Click to update to HTTPS.";
+        return;
+    }
+
     try {
-        const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(`${API_BASE_URL}/health`, { 
+            method: "GET",
+            signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+
         if (res.ok) {
             backendStatusBadge.className = "status-pill status-online";
             statusLabel.textContent = "S3 Vault Active";
+            backendStatusBadge.title = `Connected to ${API_BASE_URL}`;
         } else {
             backendStatusBadge.className = "status-pill status-checking";
             statusLabel.textContent = "API Status: Warning";
+            backendStatusBadge.title = `HTTP ${res.status} from ${API_BASE_URL}`;
         }
     } catch (err) {
         backendStatusBadge.className = "status-pill status-offline";
         statusLabel.textContent = "Vault Server Offline";
+        backendStatusBadge.title = `Could not reach ${API_BASE_URL}. Click to change settings.`;
     }
+}
+
+// ==========================================================================
+// 9. Backend Connection Settings Modal Logic
+// ==========================================================================
+function openApiModal() {
+    if (!apiModalBackdrop) return;
+    if (backendUrlInput) {
+        backendUrlInput.value = API_BASE_URL;
+    }
+    if (modalConnectionStatus) {
+        modalConnectionStatus.textContent = "";
+        modalConnectionStatus.className = "modal-status-text";
+    }
+    apiModalBackdrop.classList.remove("hidden");
+    if (backendUrlInput) backendUrlInput.focus();
+}
+window.openApiModal = openApiModal;
+
+function closeApiModal() {
+    if (apiModalBackdrop) {
+        apiModalBackdrop.classList.add("hidden");
+    }
+}
+
+if (backendStatusBadge) {
+    backendStatusBadge.addEventListener("click", openApiModal);
+}
+if (apiSettingsBtn) {
+    apiSettingsBtn.addEventListener("click", openApiModal);
+}
+if (modalCloseBtn) {
+    modalCloseBtn.addEventListener("click", closeApiModal);
+}
+if (apiModalBackdrop) {
+    apiModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === apiModalBackdrop) closeApiModal();
+    });
+}
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && apiModalBackdrop && !apiModalBackdrop.classList.contains("hidden")) {
+        closeApiModal();
+    }
+});
+
+if (presetLocalBtn) {
+    presetLocalBtn.addEventListener("click", () => {
+        if (backendUrlInput) backendUrlInput.value = "http://127.0.0.1:8000";
+    });
+}
+if (presetProxyBtn) {
+    presetProxyBtn.addEventListener("click", () => {
+        if (backendUrlInput) backendUrlInput.value = "/api";
+    });
+}
+if (presetResetBtn) {
+    presetResetBtn.addEventListener("click", () => {
+        if (backendUrlInput) backendUrlInput.value = "";
+    });
+}
+
+if (testConnectionBtn) {
+    testConnectionBtn.addEventListener("click", async () => {
+        const targetUrl = (backendUrlInput ? backendUrlInput.value : "").trim().replace(/\/+$/, "");
+        if (modalConnectionStatus) {
+            modalConnectionStatus.textContent = "Connecting to backend /health endpoint...";
+            modalConnectionStatus.className = "modal-status-text info";
+        }
+
+        // Check mixed content security
+        if (window.location.protocol === "https:" && targetUrl.startsWith("http://")) {
+            if (modalConnectionStatus) {
+                modalConnectionStatus.textContent = "Security alert: Browsers block http:// requests on https:// Netlify sites. Please host backend on HTTPS (Render, Railway, Fly.io).";
+                modalConnectionStatus.className = "modal-status-text error";
+            }
+            return;
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const healthUrl = targetUrl ? `${targetUrl}/health` : "/health";
+            const res = await fetch(healthUrl, { method: "GET", signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                setApiBaseUrl(targetUrl);
+                if (modalConnectionStatus) {
+                    modalConnectionStatus.textContent = "✓ Connected successfully to SecureCloud FastAPI!";
+                    modalConnectionStatus.className = "modal-status-text success";
+                }
+                showToast("Backend endpoint connected and saved!", "success");
+                setTimeout(closeApiModal, 1000);
+            } else {
+                throw new Error(`Endpoint returned HTTP ${res.status}`);
+            }
+        } catch (err) {
+            setApiBaseUrl(targetUrl);
+            if (modalConnectionStatus) {
+                modalConnectionStatus.textContent = `Saved URL, but health check failed: ${err.message}`;
+                modalConnectionStatus.className = "modal-status-text error";
+            }
+            showToast("Endpoint saved (backend is currently offline)", "error");
+        }
+    });
 }
 
 // ==========================================================================
@@ -469,6 +692,7 @@ function escapeHtml(str) {
 // ==========================================================================
 initExplodeButtons();
 initCardGlow();
+updateDocsLink();
 checkBackendHealth();
 loadFiles();
 

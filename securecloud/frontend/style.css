@@ -1352,3 +1352,204 @@ body {
         width: 100%;
     }
 }
+
+/* ==========================================================================
+   Backend Settings Modal & Configuration Controls
+   ========================================================================== */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(5, 5, 10, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1.5rem;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+
+.modal-backdrop.hidden {
+    display: none !important;
+}
+
+.modal-card {
+    background: #0f1017;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 50px rgba(139, 92, 246, 0.15);
+    position: relative;
+    animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.modal-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: var(--accent-violet);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-title-wrap h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.6rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+}
+
+.modal-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.modal-description {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+}
+
+.modal-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.modal-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #cbd5e1;
+    margin-bottom: 0.5rem;
+}
+
+.input-action-row {
+    display: flex;
+    gap: 0.65rem;
+}
+
+.modal-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+    color: #ffffff;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.modal-input:focus {
+    border-color: var(--accent-violet);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+.modal-test-btn {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.modal-status-text {
+    font-size: 0.82rem;
+    margin-top: 0.65rem;
+    min-height: 1.2rem;
+}
+
+.modal-status-text.success {
+    color: #10b981;
+}
+
+.modal-status-text.error {
+    color: #f43f5e;
+}
+
+.modal-status-text.info {
+    color: #8b5cf6;
+}
+
+.modal-preset-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preset-label {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-right: 0.25rem;
+}
+
+.preset-pill {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.preset-pill:hover {
+    background: rgba(139, 92, 246, 0.18);
+    border-color: rgba(139, 92, 246, 0.4);
+    color: #ffffff;
+}
+

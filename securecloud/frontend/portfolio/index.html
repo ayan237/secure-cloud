@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureCloud – Architecture & Specifications</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #08080b;
+      --card-bg: rgba(18, 18, 26, 0.75);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #8b5cf6;
+      --accent-secondary: #6366f1;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 0;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 500px;
+      top: -150px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.16) 0%, transparent 70%);
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    header {
+      padding: 4.5rem 1.5rem 2.5rem 1.5rem;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      background: radial-gradient(185.4% 106.06% at 66.51% 82.61%, #151520 0%, #201c2e 100%);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #e2e8f0;
+      margin-bottom: 1.5rem;
+      font-family: 'Space Grotesk', monospace;
+    }
+    .tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    header h1 {
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 40%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin: 0 auto 1.5rem auto;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.35rem;
+      border-radius: 9999px;
+      background: #151520;
+      color: #f8fafc;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.25s ease;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    }
+    .nav-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 0 25px rgba(139, 92, 246, 0.45);
+    }
+    .container {
+      max-width: 1040px;
+      margin: 1rem auto 4rem auto;
+      padding: 0 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.5);
+      transition: border-color 0.3s ease;
+    }
+    .card:hover {
+      border-color: rgba(139, 92, 246, 0.35);
+    }
+    h2 {
+      color: #ffffff;
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-top: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    p {
+      color: var(--text-muted);
+      margin-bottom: 0.85rem;
+    }
+    p strong {
+      color: #ffffff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+    .grid-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1.35rem;
+      border-radius: 14px;
+    }
+    .grid-item h3 {
+      margin-top: 0;
+      margin-bottom: 0.45rem;
+      color: var(--accent);
+      font-size: 1.05rem;
+    }
+    .grid-item p {
+      font-size: 0.88rem;
+      margin-bottom: 0;
+    }
+    ol, ul {
+      padding-left: 1.5rem;
+      color: var(--text-muted);
+    }
+    li {
+      margin-bottom: 0.6rem;
+    }
+    li strong {
+      color: #ffffff;
+    }
+    code {
+      font-family: 'Space Grotesk', monospace;
+      background: rgba(255, 255, 255, 0.07);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #c4b5fd;
+    }
+    pre {
+      background: #0d0d13;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      padding: 1.25rem;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    .mermaid {
+      background: rgba(12, 12, 18, 0.8);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: center;
+    }
+    footer {
+      text-align: center;
+      padding: 3rem 1rem;
+      font-size: 0.85rem;
+      color: #64748b;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow"></div>
+
+  <header>
+    <div class="hero-tag">
+      <span class="tag-dot"></span>
+      <span>System Architecture Specification</span>
+    </div>
+    <h1>SecureCloud Architecture</h1>
+    <p>Encrypted Cloud Object Storage & High-Throughput Segmentation on AWS</p>
+    <a href="../index.html" class="nav-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      Open Interactive Vault Dashboard
+    </a>
+  </header>
+
+  <div class="container">
+    <!-- Problem Statement & Objectives -->
+    <section class="card">
+      <h2>1. Overview & Objectives</h2>
+      <p><strong>Problem Statement:</strong> Storing unencrypted files on public cloud providers exposes sensitive personal or institutional data to potential breaches, accidental public bucket misconfigurations, and regulatory non-compliance.</p>
+      <p><strong>Primary Objective:</strong> Implement client-side/application-level file segmentation, authenticated AES-256-GCM encryption, private S3 cloud storage, and cryptographic file reconstruction. Keys are never exposed to cloud infrastructure.</p>
+    </section>
+
+    <!-- Architecture Diagram -->
+    <section class="card">
+      <h2>2. System Architecture</h2>
+      <div class="mermaid">
+      graph TD
+        User[Client Browser UI] -->|HTTP / REST| API[FastAPI Application]
+        API -->|1. Segment| Seg[1 MiB Block Splitter]
+        Seg -->|2. Encrypt| Crypto[AES-256-GCM Encryption]
+        Crypto -->|3. Upload Blocks| S3[Amazon S3 Private Bucket]
+        Crypto -->|Save Key Locally| LocalKeys[(securecloud_keys/)]
+        API -->|4. Upload Manifest| S3
+        S3 -.->|CloudFront Distribution| CF[CloudFront CDN + HTTPS]
+        CF -.->|Static Delivery| PortfolioWeb[Portfolio Site]
+      </div>
+    </section>
+
+    <!-- Key Technical Concepts -->
+    <section class="card">
+      <h2>3. Technical Implementation</h2>
+      <div class="grid">
+        <div class="grid-item">
+          <h3>File Segmentation</h3>
+          <p>Files are streamed in binary chunks of 1 MiB (1,048,576 bytes) to optimize upload handling and prevent high RAM usage.</p>
+        </div>
+        <div class="grid-item">
+          <h3>AES-256-GCM Encryption</h3>
+          <p>Each block is encrypted independently using a cryptographically secure 256-bit key and unique 96-bit nonce with authenticated tags.</p>
+        </div>
+        <div class="grid-item">
+          <h3>Integrity Verification</h3>
+          <p>SHA-256 checksums are calculated during upload and verified byte-by-byte upon reconstruction during download.</p>
+        </div>
+        <div class="grid-item">
+          <h3>CloudFront & S3 Hosting</h3>
+          <p>S3 static site assets are served through CloudFront with Origin Access Control (OAC) and HTTPS redirection.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workflow -->
+    <section class="card">
+      <h2>4. S3 Storage & Retrieval Workflow</h2>
+      <ol>
+        <li><strong>Upload:</strong> User uploads file &rarr; File is split into 1 MiB blocks &rarr; Unique 256-bit AES key generated &rarr; Blocks encrypted with unique nonces &rarr; Uploaded to <code>files/{file_id}/blocks/*.enc</code> &rarr; Manifest saved to <code>files/{file_id}/manifest.json</code>.</li>
+        <li><strong>Download:</strong> Manifest retrieved &rarr; Key loaded from local key store &rarr; Blocks retrieved in sequence &rarr; Decrypted and verified with AES-GCM &rarr; SHA-256 recalculated & matched &rarr; Streamed to user.</li>
+      </ol>
+    </section>
+
+    <!-- Deployment & Automation -->
+    <section class="card">
+      <h2>5. Setup and Deployment</h2>
+      <pre><code># Start backend locally
+uvicorn backend.main:app --reload
+
+# Run full test suite
+pytest
+
+# Deploy portfolio to AWS S3 & CloudFront (PowerShell)
+.\scripts\deploy_portfolio.ps1</code></pre>
+    </section>
+
+    <!-- Limitations -->
+    <section class="card">
+      <h2>6. Limitations & Future Enhancements</h2>
+      <ul>
+        <li>Current version uses single-user local key management; future enhancements will integrate AWS KMS (Key Management Service).</li>
+        <li>Multi-user authentication and role-based access control (Cognito / JWT).</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>
+    <p>SecureCloud Project &bull; Built with FastAPI, Cryptography, Boto3, and Vanilla JS &bull; MIT License</p>
+  </footer>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</body>
+</html>
